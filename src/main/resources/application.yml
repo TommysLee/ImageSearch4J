@@ -23,6 +23,11 @@ spring:
 
 #项目配置
 ty:
+  #模型配置
+  onnx-engine-path: "${user.home}/.djl.ai/onnx/win-x64"
+  models-dir: "${user.home}/models"
+  main-body-model-name: "picodet_lcnet_x2_5_640_mainbody.onnx"
+  general-p-pLCNet-model-name: "general_PPLCNetV2.onnx"
   #AI推理任务线程池配置
   ai-infer:
     core-pool-size: 4
@@ -30,4 +35,14 @@ ty:
     queue-capacity: 100
     keep-alive-seconds: 60
     thread-name-prefix: ai-infer-
-
+  #Predictor 对象池配置
+  predictor:
+    max-total: 8
+    max-idle: 8
+    min-idle: 2
+    block-when-exhausted: true
+    max-wait: 1
+    test-on-borrow: false
+    test-on-return: false
+    time-between-eviction-runs: 30
+    min-evictable-idle-time: 300

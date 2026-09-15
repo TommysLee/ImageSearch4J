@@ -24,7 +24,7 @@ public class TyConfig {
     /**
      * AI推理任务线程池配置
      */
-    @Bean("aiInferExecutor")
+    @Bean
     public ThreadPoolTaskExecutor aiInferExecutor(AInferThreadPoolProperties poolProperties) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(poolProperties.getCorePoolSize());         // 核心线程数

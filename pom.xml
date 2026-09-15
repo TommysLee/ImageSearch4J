@@ -28,6 +28,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <djl.version>0.38.0</djl.version>
         <onnxruntime.version>1.29.0</onnxruntime.version>
+        <lucene.version>9.12.3</lucene.version>
         <commons-pool2.version>2.13.1</commons-pool2.version>
     </properties>
 
@@ -78,7 +79,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>9.12.3</version>
+            <version>${lucene.version}</version>
         </dependency>
 
         <!-- Spring MVC Starter -->

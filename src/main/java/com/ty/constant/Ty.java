@@ -14,6 +14,9 @@ public interface Ty {
     /** 处理器数量 **/
     int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
+    /** 用户根目录 **/
+    String USER_HOME = System.getProperty("user.home");
+
     /** 数据总记录数Key **/
     String TOTAL = "total";
 
