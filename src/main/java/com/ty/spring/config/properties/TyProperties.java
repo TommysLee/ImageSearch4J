@@ -34,6 +34,12 @@ public class TyProperties {
     /** 特征向量ONNX模型名称 **/
     private String generalPPLCNetModelName = "general_PPLCNetV2.onnx";
 
+    /** Lucene缓冲区大小（单位：MB） **/
+    private int luceneBufferSize = 256;
+
+    /** Lucene索引目录 **/
+    private String indexDir = Paths.get(USER_HOME, "vector_index").toString();
+
     /**
      * 获取主体检测ONNX模型路径
      */

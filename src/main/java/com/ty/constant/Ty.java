@@ -26,18 +26,6 @@ public interface Ty {
     /** 总页数Key **/
     String PAGES = "pages";
 
-    /** 1分钟秒数 **/
-    int SECONDS_OF_MINUTE = 60;
-
-    /** 24小时秒数 **/
-    int SECONDS_OF_DAY = 3600 * 24;
-
-    /** 24小时秒数近似值(差1秒) **/
-    int SECONDS_OF_DAY_APPROX = SECONDS_OF_DAY - 1;
-
-    /** 1天小时数 **/
-    int HOURS_OF_DAY = 24;
-
     /** 默认页码 **/
     String DEFAULT_PAGE = "1";
 
@@ -73,10 +61,4 @@ public interface Ty {
 
     /** 默认缓存区大小 **/
     int DEFAULT_BUFFER_SIZE = 4096;
-
-    /** '空'标识 **/
-    String NIL = "nil";
-
-    /** 未知 **/
-    String UNKNOWN = "Unknown";
 }

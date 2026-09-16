@@ -46,3 +46,6 @@ ty:
     test-on-return: false
     time-between-eviction-runs: 30
     min-evictable-idle-time: 300
+  #向量配置
+  lucene-buffer-size: 256
+  index-dir: "${user.home}/vector_index"

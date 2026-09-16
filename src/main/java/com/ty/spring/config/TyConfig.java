@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -20,6 +21,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableConfigurationProperties({ TyProperties.class, AInferThreadPoolProperties.class })
 @Slf4j
 public class TyConfig {
+
+    /** AI推理任务线程池名称 **/
+    public static final String AI_INFER_EXECUTOR = "aiInferExecutor";
+
+    /** Lucene定时任务线程池名称 **/
+    public static final String LUCENE_TASK_SCHEDULER = "luceneTaskScheduler";
 
     /**
      * AI推理任务线程池配置
@@ -40,5 +47,17 @@ public class TyConfig {
 
         log.info("AI推理任务线程池配置完毕: {}", poolProperties);
         return executor;
+    }
+
+    /**
+     * Lucene 专用定时任务线程池
+     * 2 个线程：1 个用于每秒刷新，1 个用于每 5 分钟提交，互不阻塞。
+     */
+    @Bean
+    public ThreadPoolTaskScheduler luceneTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix("lucene-scheduler-");
+        return scheduler;
     }
 }
