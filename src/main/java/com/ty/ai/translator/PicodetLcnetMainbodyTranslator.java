@@ -1,4 +1,4 @@
-package com.ty.ai.cv.translator;
+package com.ty.ai.translator;
 
 import ai.djl.modality.cv.Image;
 import ai.djl.modality.cv.output.BoundingBox;
