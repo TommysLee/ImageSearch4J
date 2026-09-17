@@ -29,14 +29,21 @@ public class CustomException extends RuntimeException {
     }
 
     /**
-     * 仅包含错误码的构造函数
+     * 仅包含错误信息的构造函数
      */
     public CustomException(String message) {
         super(message);
     }
 
     /**
-     * 仅包含错误码和信息的构造函数（最常用）
+     * 包含错误信息和原始异常的构造函数
+     */
+    public CustomException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    /**
+     * 包含错误码和信息的构造函数（最常用）
      */
     public CustomException(int code, String message) {
         super(message);
