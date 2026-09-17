@@ -83,6 +83,13 @@
             <version>${lucene.version}</version>
         </dependency>
 
+        <!-- 让Java ImageIO支持webp -->
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-webp</artifactId>
+            <version>3.15.1</version>
+        </dependency>
+
         <!-- Spring MVC Starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

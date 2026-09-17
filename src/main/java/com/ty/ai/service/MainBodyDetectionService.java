@@ -7,17 +7,14 @@ import ai.djl.modality.cv.output.DetectedObjects;
 import ai.djl.modality.cv.output.DetectedObjects.DetectedObject;
 import com.google.common.collect.Lists;
 import com.ty.exception.CustomException;
+import com.ty.utils.ImageUtils;
 import com.ty.utils.NMSUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -50,6 +47,7 @@ public class MainBodyDetectionService {
             return resultList;
         }
 
+        long begin = System.currentTimeMillis();
         Predictor<Image, DetectedObjects> predictor = null;
         try {
             predictor = mainbodyPredictorPool.borrowObject();
@@ -73,6 +71,8 @@ public class MainBodyDetectionService {
                 mainbodyPredictorPool.returnObject(predictor);
             }
         }
+        long end = System.currentTimeMillis();
+        log.debug("主体检测-推理耗时：{}ms.", end - begin);
         return resultList;
     }
 
@@ -98,23 +98,6 @@ public class MainBodyDetectionService {
      * @throws Exception
      */
     public List<DetectedObject> predict(String imageBase64) throws Exception {
-        if (StringUtils.isBlank(imageBase64)) {
-            return Lists.newArrayList();
-        }
-
-        // 截取逗号后的纯 Base64 部分
-        String pureBase64 = StringUtils.substringAfter(imageBase64, ",");
-
-        // 解码为字节数组
-        byte[] imageBytes = Base64.decodeBase64(pureBase64);
-
-        // 转换为BufferedImage
-        BufferedImage bufferedImage;
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
-            bufferedImage = ImageIO.read(bis);
-        }
-
-        // 执行主体检测
-        return this.predict(bufferedImage);
+        return this.predict(ImageUtils.base64ToBufferedImage(imageBase64));
     }
 }

@@ -38,6 +38,7 @@ public class FeatureExtractionService {
             return null;
         }
 
+        long begin = System.currentTimeMillis();
         Predictor<Image, float[]> predictor = null;
         float[] result;
         try {
@@ -51,6 +52,8 @@ public class FeatureExtractionService {
                 generalPPLCNetPredictorPool.returnObject(predictor);
             }
         }
+        long end = System.currentTimeMillis();
+        log.debug("特征向量提取-推理耗时：{}ms.", end - begin);
         return result;
     }
 

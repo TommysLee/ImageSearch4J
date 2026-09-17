@@ -14,6 +14,9 @@ public interface LuceneFields {
     /** MD5 字段（用于去重和精确查询） */
     String MD5 = "md5";
 
-    /** 图片名称字段（仅用于展示） */
+    /** 图片名称字段（仅存储） */
     String NAME = "name";
+
+    /** 图片路径字段（仅存储） **/
+    String PATH = "path";
 }

@@ -49,3 +49,6 @@ ty:
   #向量配置
   lucene-buffer-size: 256
   index-dir: "${user.home}/vector_index"
+  image-root: "${user.home}/image_gallery"
+  image-data-file: "${user.home}/image_gallery/drink_label_all.txt"
+  auto-build-index-on-empty: true

@@ -40,6 +40,15 @@ public class TyProperties {
     /** Lucene索引目录 **/
     private String indexDir = Paths.get(USER_HOME, "vector_index").toString();
 
+    /** 图库根目录 **/
+    private String imageRoot = Paths.get(USER_HOME, "image_gallery").toString();;
+
+    /** 图库数据标签文件 **/
+    private String imageDataFile = Paths.get(imageRoot, "drink_label_all.txt").toString();
+
+    /** 启动时若索引为空，则自动构建 **/
+    private boolean autoBuildIndexOnEmpty = true;
+
     /**
      * 获取主体检测ONNX模型路径
      */

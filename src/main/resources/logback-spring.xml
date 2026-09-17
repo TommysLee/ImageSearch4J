@@ -17,7 +17,7 @@
     <logger name="org.springframework.context.support.PostProcessorRegistrationDelegate" level="ERROR"/>
 
     <!-- 项目日志 -->
-    <logger name="com.ty" level="DEBUG"/>
+    <logger name="com.ty" level="INFO"/>
 
     <!-- 根日志 -->
     <root level="INFO">
