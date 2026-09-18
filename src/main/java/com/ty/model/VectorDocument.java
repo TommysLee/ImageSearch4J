@@ -24,7 +24,7 @@ public class VectorDocument implements Serializable {
     /** 图片名称 **/
     private String name;
 
-    /** 图片名称 **/
+    /** 图片路径 **/
     private String path;
 
     /** 图片MD5 **/

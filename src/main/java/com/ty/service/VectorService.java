@@ -63,7 +63,7 @@ public class VectorService {
     @Autowired
     private TyProperties tyProperties;
 
-    private int efSearch = 10;
+    private static final int EF_SEARCH = 10;
 
     /**
      * 构建向量数据库
@@ -101,6 +101,8 @@ public class VectorService {
             tick++;
             bar.update(Math.floorDiv(tick * 100, lines.size()));
         }
+        // 提交索引，持久化到磁盘
+        writer.commit();
         long end = System.currentTimeMillis();
         log.info("向量数据库构建完毕，耗时：{} seconds.", Math.round((end - begin)/1000f));
     }
@@ -155,13 +157,15 @@ public class VectorService {
         Document doc = new Document();
         doc.add(new StringField(MD5, md5, Field.Store.YES)); // 整体作为一个Term，用于精确匹配
         doc.add(new StoredField(NAME, name)); // 仅存储
-        doc.add(new StoredField(PATH, path)); // 仅存储
+        if (StringUtils.isNotBlank(path)) {
+            doc.add(new StoredField(PATH, path)); // 仅存储
+        }
         // 向量字段
         // 指定相似度函数为IP点积（可选值：COSINE 或 DOT_PRODUCT）
         // 因为AI模型对结果进行了 L2 归一化，所以这里用 DOT_PRODUCT
         doc.add(new KnnFloatVectorField(EMBEDDING, vector, VectorSimilarityFunction.DOT_PRODUCT));
 
-        // 写入索引/向量
+        // 添加索引/向量
         writer.addDocument(doc);
         log.debug("已添加图片: {} ({})", name, md5);
         return 1;
@@ -173,7 +177,7 @@ public class VectorService {
      * @param bufferedImage 待搜索的图像
      * @param topK          返回的最相似图片数量
      * @return List<VectorDocument>
-     * @throws IOException
+     * @throws Exception
      */
     public List<VectorDocument> search(BufferedImage bufferedImage, int topK) throws Exception {
         List<VectorDocument> vdocList = Lists.newArrayList();
@@ -185,8 +189,8 @@ public class VectorService {
 
             // 执行 k-NN 搜索，efSearch=10：搜索时扩大搜索范围以提升召回率
             // efSearch 控制每个索引段（Segment）内部 HNSW 图的搜索广度（即 HNSW 的 efSearch 参数）
-            // [合理设置该值，可提高召回率（Recall）。对于百万级数据、512 维向量，建议将 n 设为 10 ~ 100 之间]
-            KnnFloatVectorQuery query = new KnnFloatVectorQuery(EMBEDDING, queryVector, efSearch);
+            // [合理设置该值，可提高召回率（Recall）。对于百万级数据、512 维向量，建议将 EF_SEARCH 设为 10 ~ 100 之间]
+            KnnFloatVectorQuery query = new KnnFloatVectorQuery(EMBEDDING, queryVector, EF_SEARCH);
             TopDocs topDocs = searcher.search(query, topK);
 
             // 处理并封装结果
@@ -210,7 +214,7 @@ public class VectorService {
      *
      * @param md5 图像MD5值
      * @return Document 返回匹配的文档；若不存在，返回 null
-     * @throws Exception
+     * @throws IOException
      */
     public Document findByMd5(String md5) throws IOException {
         if (StringUtils.isBlank(md5)) {
@@ -237,7 +241,17 @@ public class VectorService {
      * @throws IOException
      */
     public boolean existsByMd5(String md5) throws IOException {
-        return null != this.findByMd5(md5);
+        if (StringUtils.isBlank(md5)) {
+            return false;
+        }
+
+        IndexSearcher searcher = searcherManager.acquire();
+        try {
+            TopDocs topDocs = searcher.search(new TermQuery(new Term(MD5, md5)), 1);
+            return topDocs.scoreDocs.length > 0;
+        } finally {
+            searcherManager.release(searcher);
+        }
     }
 
     /**
@@ -249,7 +263,9 @@ public class VectorService {
     public boolean isEmpty() throws IOException {
         IndexSearcher searcher = searcherManager.acquire();
         try {
-            return searcher.getIndexReader().numDocs() == 0;
+            int count = searcher.getIndexReader().numDocs();
+            log.debug("索引库数量：{}", count);
+            return count == 0;
         } finally {
             searcherManager.release(searcher);
         }
