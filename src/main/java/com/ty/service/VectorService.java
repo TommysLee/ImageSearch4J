@@ -172,11 +172,11 @@ public class VectorService {
     }
 
     /**
-     * 向量检索 Vector Retrieval
+     * 向量检索 Vector Retrieval：根据图片找最相似的 TopK 条记录。
      *
      * @param bufferedImage 待搜索的图像
      * @param topK          返回的最相似图片数量
-     * @return List<VectorDocument>
+     * @return List<VectorDocument> 按相似度倒序排列的匹配结果；无匹配时返回空列表
      * @throws Exception
      */
     public List<VectorDocument> search(BufferedImage bufferedImage, int topK) throws Exception {

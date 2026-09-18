@@ -31,7 +31,7 @@ public class MainBodyDetectionService {
     @Autowired
     private GenericObjectPool<Predictor<Image, DetectedObjects>> mainbodyPredictorPool;
 
-    private final double threshold = 0.2;
+    private final double threshold = 0.3;
     private final int maxDetResults = 5;
 
     /**
