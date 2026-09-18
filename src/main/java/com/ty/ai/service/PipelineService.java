@@ -54,6 +54,7 @@ public class PipelineService {
         // "候选 → 各自检索 → 二次排序"的策略：优化并提高召回率。即每个候选独立检索后取全局最优。
         VectorDocument bestMatch = null;
         Rectangle bestBbox = null;
+        DetectedObject bestCandidate = null;
         for (DetectedObject c : candidates) {
             Rectangle box = c.getBoundingBox().getBounds();
 
@@ -70,10 +71,12 @@ public class PipelineService {
             if (null == bestMatch || doc.getScore() > bestMatch.getScore()) {
                 bestMatch = doc;
                 bestBbox = box;
+                bestCandidate = c;
             } else if (doc.getScore() == bestMatch.getScore()) {
                 if (box.getWidth() * box.getHeight() > bestBbox.getWidth() * bestBbox.getHeight()) {
                     bestMatch = doc;
                     bestBbox = box;
+                    bestCandidate = c;
                 }
             }
         }
@@ -82,6 +85,7 @@ public class PipelineService {
         if (null != bestMatch) {
             result.setMatch(bestMatch);
             result.setBbox(bestBbox);
+            candidates.remove(bestCandidate); // 匹配结果从候选集中移除
         }
 
         long end = System.currentTimeMillis();
