@@ -29,7 +29,7 @@ public class PipelineTest {
         String path = Paths.get(Ty.USER_HOME, "image_test", "99.jpg").toString();
         File imgFile = new File(path);
         if (!imgFile.exists()) {
-            System.out.println("图片文件不存在：" + path);
+            System.out.println("测试图片文件不存在：" + path);
             return;
         }
 
