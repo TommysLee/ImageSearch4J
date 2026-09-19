@@ -13,7 +13,7 @@ import java.io.File;
 import java.nio.file.Paths;
 
 /**
- * Pipeline 测试
+ * Pipeline 单元测试
  *
  * @Author Tommy
  * @Date 2026/9/19
