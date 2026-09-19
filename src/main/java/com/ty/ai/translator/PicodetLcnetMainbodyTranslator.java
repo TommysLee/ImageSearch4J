@@ -43,6 +43,10 @@ public class PicodetLcnetMainbodyTranslator implements NoBatchifyTranslator<Imag
         NDManager manager = ctx.getNDManager();
         NDArray img = input.toNDArray(manager);
 
+        // 记录原图尺寸，供 processOutput 使用
+        ctx.setAttachment("imageWidth", input.getWidth());
+        ctx.setAttachment("imageHeight", input.getHeight());
+
         // 1. Resize 到 640x640，使用 INTER_CUBIC
         int targetSize = 640;
         img = NDImageUtils.resize(img, targetSize, targetSize, Image.Interpolation.BICUBIC);
@@ -82,6 +86,10 @@ public class PicodetLcnetMainbodyTranslator implements NoBatchifyTranslator<Imag
         int rows = (int) shape.get(0); // 100
         int cols = (int) shape.get(1); // 6
 
+        // 从上下文取回原图尺寸
+        int imageWidth  = (int) ctx.getAttachment("imageWidth");
+        int imageHeight = (int) ctx.getAttachment("imageHeight");
+
         // 按行分组，每行6个元素
         float[] data = output.toFloatArray(); // 一次性拷贝 NDArray 全部数据
         float[][] rowsArray = IntStream.range(0, rows)
@@ -97,10 +105,11 @@ public class PicodetLcnetMainbodyTranslator implements NoBatchifyTranslator<Imag
             double score = rowsArray[i][1]; // 第二个值：置信度
 
             // 3~6：矩形框4个坐标
-            float x1 = rowsArray[i][2];
-            float y1 = rowsArray[i][3];
-            float x2 = rowsArray[i][4];
-            float y2 = rowsArray[i][5];
+            // 坐标裁剪：夹紧到图像边界内
+            float x1 = clamp(rowsArray[i][2], 0, imageWidth);
+            float y1 = clamp(rowsArray[i][3], 0, imageHeight);
+            float x2 = clamp(rowsArray[i][4], 0, imageWidth);
+            float y2 = clamp(rowsArray[i][5], 0, imageHeight);
 
             classNames.add(id + "_foreground，" + Math.round(score * 100) / 100f);
             probabilities.add(score);
@@ -108,5 +117,9 @@ public class PicodetLcnetMainbodyTranslator implements NoBatchifyTranslator<Imag
         }
 
         return new DetectedObjects(classNames, probabilities, boundingBoxes);
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(value, max));
     }
 }
