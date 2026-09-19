@@ -90,8 +90,9 @@ public class PipelineService {
 
         long end = System.currentTimeMillis();
         if (bestMatch != null) {
-            log.info("以图搜图 Pipeline 耗时：{} ms，候选数：{}，匹配分数：{}，目标框：x={} y={} w={} h={}",
-                    end - begin, candidates.size(),
+            log.info("以图搜图 Pipeline 耗时：{} ms，候选数：{}，匹配结果：{}，匹配分数：{}，目标框：x={} y={} w={} h={}",
+                    end - begin, candidates.size() + 1,
+                    bestMatch.getName(),
                     bestMatch.getScore(),
                     bestBbox.getX(), bestBbox.getY(), bestBbox.getWidth(), bestBbox.getHeight());
         } else {
