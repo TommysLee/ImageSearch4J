@@ -72,7 +72,7 @@ public class MainBodyDetectionService {
             }
         }
         long end = System.currentTimeMillis();
-        log.debug("主体检测-推理耗时：{}ms.", end - begin);
+        log.info("主体检测结束，候选框：{} 个，耗时：{}ms.", resultList.size(), end - begin);
         return resultList;
     }
 
