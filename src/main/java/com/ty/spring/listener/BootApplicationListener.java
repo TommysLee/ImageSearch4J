@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import static com.ty.constant.Ty.USER_HOME;
+
 /**
  * SpringBoot应用启动的监听器
  *
@@ -45,7 +47,7 @@ public class BootApplicationListener implements ApplicationRunner {
         } else {
             log.warn("!图库缺失：{}", tyProperties.getImageRoot());
             log.info("请下载图库：{}", "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/data/drink_dataset_v2.0.tar");
-            log.warn("下载完毕后，请解压，复制 gallery 并重命名 到 {}", tyProperties.getImageRoot());
+            log.warn("下载完毕后，请解压并重命名为 {} ，然后复制到 {}", "image_gallery", USER_HOME);
             log.warn("★图库下载完毕后，请再次启动本应用！");
             System.exit(0);
         }

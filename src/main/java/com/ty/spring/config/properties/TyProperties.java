@@ -41,7 +41,10 @@ public class TyProperties {
     private String indexDir = Paths.get(USER_HOME, "vector_index").toString();
 
     /** 图库根目录 **/
-    private String imageRoot = Paths.get(USER_HOME, "image_gallery").toString();;
+    private String imageRoot = Paths.get(USER_HOME, "image_gallery", "gallery").toString();
+
+    /** 测试图库根目录 **/
+    private String imageTestRoot = Paths.get(USER_HOME, "image_gallery", "test_images").toString();
 
     /** 图库数据标签文件 **/
     private String imageDataFile = Paths.get(imageRoot, "drink_label_all.txt").toString();

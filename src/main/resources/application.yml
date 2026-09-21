@@ -20,6 +20,14 @@ spring:
     multipart: #文件上传配置（单文件大小限制与请求总大小限制）
       max-file-size: 10MB
       max-request-size: 25MB
+  web:
+    resources:
+      static-locations: #静态资源设置
+        - classpath:/META-INF/resources/
+        - classpath:/resources/
+        - classpath:/static/
+        - classpath:/public/
+        - "file:${user.home}/image_gallery/"
 
 #项目配置
 ty:
@@ -49,6 +57,6 @@ ty:
   #向量配置
   lucene-buffer-size: 256
   index-dir: "${user.home}/vector_index"
-  image-root: "${user.home}/image_gallery"
-  image-data-file: "${user.home}/image_gallery/drink_label_all.txt"
+  image-root: "${user.home}/image_gallery/gallery"
+  image-data-file: "${user.home}/image_gallery/gallery/drink_label_all.txt"
   auto-build-index-on-empty: true

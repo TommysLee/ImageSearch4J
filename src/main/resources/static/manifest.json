@@ -1,0 +1,15 @@
+{
+  "name": "图像搜索AI应用",
+  "display": "standalone",
+  "theme_color": "#010919",
+  "background_color": "#010919",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/images/logo/ty-greeen.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
