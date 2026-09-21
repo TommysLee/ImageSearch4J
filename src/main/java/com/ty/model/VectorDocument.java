@@ -1,5 +1,6 @@
 package com.ty.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -32,4 +33,8 @@ public class VectorDocument implements Serializable {
 
     /** 相似度得分 **/
     private float score;
+
+    /** 与该文档对应的查询特征向量 **/
+    @JsonIgnore
+    private float[] queryVector;
 }

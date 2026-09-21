@@ -23,14 +23,26 @@ public class ImageSearchService {
     @Autowired
     private PipelineService pipelineService;
 
+    @Autowired
+    private VectorService vectorService;
+
     /**
      * 图像搜索
      *
      * @param bufferedImage 待检索的图片
+     * @param topK          返回的最相似图片数量
+     * @param scoreThres    置信度阈值‌，低于该值的记录被过滤
      * @return CompletableFuture<SearchResult>
      */
     @Async("aiInferExecutor")
-    public CompletableFuture<SearchResult> search(BufferedImage bufferedImage) throws Exception {
-        return CompletableFuture.completedFuture(pipelineService.process(bufferedImage));
+    public CompletableFuture<SearchResult> search(BufferedImage bufferedImage, int topK, float scoreThres) throws Exception {
+        // 定位最佳主体
+        SearchResult result = pipelineService.process(bufferedImage);
+
+        // 以最佳主体，进行图像向量检索
+        if (null != result.getMatch() && null != result.getMatch().getQueryVector()) {
+            result.setSimilarList(vectorService.search(result.getMatch().getQueryVector(), topK, scoreThres));
+        }
+        return CompletableFuture.completedFuture(result);
     }
 }

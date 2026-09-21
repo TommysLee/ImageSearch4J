@@ -174,33 +174,55 @@ public class VectorService {
     /**
      * 向量检索 Vector Retrieval：根据图片找最相似的 TopK 条记录。
      *
-     * @param bufferedImage 待搜索的图像
+     * @param bufferedImage 待搜索的图片
      * @param topK          返回的最相似图片数量
+     * @param scoreThres    置信度阈值‌，低于该值的记录被过滤
      * @return List<VectorDocument> 按相似度倒序排列的匹配结果；无匹配时返回空列表
      * @throws Exception
      */
-    public List<VectorDocument> search(BufferedImage bufferedImage, int topK) throws Exception {
+    public List<VectorDocument> search(BufferedImage bufferedImage, int topK, float scoreThres) throws Exception {
+        // 提取图片特征向量
+        Image image = ImageFactory.getInstance().fromImage(bufferedImage);
+        float[] queryVector = featureExtractionService.predict(image);
+
+        // 执行向量检索
+        return this.search(queryVector, topK, scoreThres);
+    }
+
+    /**
+     * 向量检索 Vector Retrieval：根据图片向量找最相似的 TopK 条记录。
+     *
+     * @param queryVector 待搜索的图片向量
+     * @param topK        返回的最相似图片数量
+     * @param scoreThres  置信度阈值‌，低于该值的记录被过滤
+     * @return List<VectorDocument> 按相似度倒序排列的匹配结果；无匹配时返回空列表
+     * @throws Exception
+     */
+    public List<VectorDocument> search(float[] queryVector, int topK, float scoreThres) throws Exception {
         List<VectorDocument> vdocList = Lists.newArrayList();
         IndexSearcher searcher = searcherManager.acquire();
         try {
-            // 提取图片特征向量
-            Image image = ImageFactory.getInstance().fromImage(bufferedImage);
-            float[] queryVector = featureExtractionService.predict(image);
-
-            // 执行 k-NN 搜索，efSearch=10：搜索时扩大搜索范围以提升召回率
+            // 执行 k-NN 搜索，efSearch：搜索时扩大搜索范围以提升召回率
             // efSearch 控制每个索引段（Segment）内部 HNSW 图的搜索广度（即 HNSW 的 efSearch 参数）
-            // [合理设置该值，可提高召回率（Recall）。对于百万级数据、512 维向量，建议将 EF_SEARCH 设为 10 ~ 100 之间]
-            KnnFloatVectorQuery query = new KnnFloatVectorQuery(EMBEDDING, queryVector, EF_SEARCH);
+            // 由于多段会累加候选，efSearch 通常只需与 topK 同量级；
+            // [合理设置该值，可提高召回率（Recall）。对于百万级数据、512 维向量，建议将 efSearch 设为 10 ~ 100 之间]
+            int efSearch = Math.max(topK, EF_SEARCH);
+            KnnFloatVectorQuery query = new KnnFloatVectorQuery(EMBEDDING, queryVector, efSearch);
             TopDocs topDocs = searcher.search(query, topK);
 
             // 处理并封装结果
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                // 阈值过滤：低于阈值的视为不相似
+                if (scoreDoc.score < scoreThres) {
+                    continue;
+                }
                 Document doc = searcher.storedFields().document(scoreDoc.doc);
                 vdocList.add(new VectorDocument(
                         doc.get(NAME),
                         doc.get(PATH),
                         doc.get(MD5),
-                        scoreDoc.score
+                        scoreDoc.score,
+                        queryVector
                 ));
             }
         } finally {

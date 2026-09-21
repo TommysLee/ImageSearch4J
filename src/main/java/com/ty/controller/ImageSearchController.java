@@ -28,9 +28,14 @@ public class ImageSearchController {
      * 图像搜索
      */
     @PostMapping("/search")
-    public CompletableFuture<AjaxResult> search(@RequestParam("image") MultipartFile file) throws Exception {
+    public CompletableFuture<AjaxResult> search(
+            @RequestParam("image") MultipartFile file,
+            @RequestParam(defaultValue = "10") int topk,
+            @RequestParam(defaultValue = "0.4") float threshold) throws Exception {
+        threshold = (threshold < 0 || threshold > 1)? 0.4f : threshold;
+        topk = topk < 1? 10 : topk;
         BufferedImage image = ImageIO.read(file.getInputStream());
-        return imageSearchService.search(image)
+        return imageSearchService.search(image, topk, threshold)
                 .thenApply(AjaxResult::success);
     }
 }
