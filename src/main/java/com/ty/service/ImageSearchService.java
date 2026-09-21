@@ -36,6 +36,7 @@ public class ImageSearchService {
      */
     @Async("aiInferExecutor")
     public CompletableFuture<SearchResult> search(BufferedImage bufferedImage, int topK, float scoreThres) throws Exception {
+        long begin = System.currentTimeMillis();
         // 定位最佳主体
         SearchResult result = pipelineService.process(bufferedImage);
 
@@ -43,6 +44,8 @@ public class ImageSearchService {
         if (null != result.getMatch() && null != result.getMatch().getQueryVector()) {
             result.setSimilarList(vectorService.search(result.getMatch().getQueryVector(), topK, scoreThres));
         }
+        long end = System.currentTimeMillis();
+        log.info("图像搜索结束，总耗时：{}ms. topK = {}，置信度阈值：{}，匹配数量：{}", end - begin, topK, scoreThres, result.getSimilarList().size());
         return CompletableFuture.completedFuture(result);
     }
 }

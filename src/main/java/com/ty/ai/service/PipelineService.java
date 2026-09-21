@@ -29,6 +29,8 @@ public class PipelineService {
     @Autowired
     private VectorService vectorService;
 
+    private final float scoreThres = 0.5f;
+
     /**
      * PP-Shitu Pipeline：主体检测 → 子图特征提取 → 向量检索 → 二次排序取最优。
      *
@@ -62,7 +64,7 @@ public class PipelineService {
 
             // 子图 → 向量检索（取 Top1）
             BufferedImage subImage = bufferedImage.getSubimage((int) box.getX(), (int) box.getY(), (int) box.getWidth(), (int) box.getHeight());
-            List<VectorDocument> docs = vectorService.search(subImage, 1, 0.5f);
+            List<VectorDocument> docs = vectorService.search(subImage, 1, scoreThres);
             if (CollectionUtils.isEmpty(docs)) {
                 continue;
             }
@@ -92,13 +94,15 @@ public class PipelineService {
 
         long end = System.currentTimeMillis();
         if (bestMatch != null) {
-            log.info("PP-Shitu Pipeline 定位最佳主体 耗时：{} ms，候选数：{}，匹配结果：{}，匹配分数：{}，目标框：x={} y={} w={} h={}",
-                    end - begin, candidates.size() + 1,
+            log.info("PP-Shitu Pipeline 定位最佳主体 耗时：{} ms，置信度阈值：{}，候选数：{}，匹配结果：{}，匹配分数：{}，目标框：x={} y={} w={} h={}",
+                    end - begin,
+                    scoreThres,
+                    candidates.size() + 1,
                     bestMatch.getName(),
                     bestMatch.getScore(),
                     bestBbox.getX(), bestBbox.getY(), bestBbox.getWidth(), bestBbox.getHeight());
         } else {
-            log.info("PP-Shitu Pipeline 定位最佳主体 耗时：{} ms，候选数：{}，无匹配", end - begin, candidates.size());
+            log.info("PP-Shitu Pipeline 定位最佳主体 耗时：{} ms，置信度阈值：{}，候选数：{}，无匹配", end - begin, scoreThres, candidates.size());
         }
         return result;
     }
