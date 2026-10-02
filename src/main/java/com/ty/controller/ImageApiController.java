@@ -14,14 +14,14 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * 以图搜图 Controller
+ * 以图搜图 API Controller
  *
  * @Author Tommy
  * @Date 2026/9/19
  */
 @RestController
 @RequestMapping("/api")
-public class ImageSearchController {
+public class ImageApiController {
 
     @Autowired
     private ImageSearchService imageSearchService;

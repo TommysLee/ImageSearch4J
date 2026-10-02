@@ -6,4 +6,4 @@
  \___/_| |_| |_|\__,_|\__, |\___\____/ \___|\__,_|_|  \___|_| |_|   |_/\____/
                        __/ |
                       |___/
-Powered by Spring Boot ${spring-boot.version}
+Powered by Spring Boot ${spring-boot.version} based on AWS DJL

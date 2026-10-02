@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>以图搜图 - 智能图像检索系统</title>
+    <script src="https://aisearch-task.bj.bcebos.com/static/tailwindcss-3.4.17.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 50%, #f0f4f8 100%);
+            min-height: 100vh;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s cubic-bezier(.2,.8,.2,1);
+            background: rgba(255,255,255,0.7);
+        }
+        
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+            transform: scale(1.01);
+        }
+        
+        .upload-zone.drag-over {
+            border-style: solid;
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.15);
+        }
+        
+        .result-card {
+            transition: all 0.3s cubic-bezier(.2,.8,.2,1);
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s forwards;
+        }
+        
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .match-card {
+            background: linear-gradient(135deg, #ecfdf5 0%, #dbeafe 100%);
+            border: 2px solid #10b981;
+        }
+        
+        .similarity-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
+            transition: width 0.8s cubic-bezier(.2,.8,.2,1);
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .pulse-ring {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 1; }
+            80%, 100% { transform: scale(1.3); opacity: 0; }
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: color 0.2s;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: #3b82f6;
+            transition: width 0.3s;
+        }
+        
+        .nav-link:hover::after,
+        .nav-link.active::after {
+            width: 100%;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+        }
+
+        /* 预览容器：用相对定位承载 canvas 覆盖层 */
+        .preview-wrapper {
+            position: relative;
+            display: inline-block;
+            max-height: 360px;
+            line-height: 0;
+        }
+
+        .preview-image {
+            max-height: 360px;
+            max-width: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            display: block;
+        }
+
+        /* 检测框覆盖层 canvas，与 img 对齐 */
+        .bbox-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            border-radius: 8px;
+        }
+
+        /* 最佳匹配标签 */
+        .best-match-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        /* 候选框图例颜色 */
+        .legend-match { background-color: #10b981; }
+        .legend-candidate { background-color: #f59e0b; }
+
+        @media (max-width: 768px) {
+            .preview-wrapper, .preview-image {
+                max-height: 240px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="glass-card sticky top-0 z-50 px-6 py-4 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    智能图像检索
+                </h1>
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="index.html" class="nav-link active text-gray-700 font-medium">以图搜图</a>
+                <a href="vector-update.html" class="nav-link text-gray-600 hover:text-gray-900 font-medium">向量更新</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 md:py-12">
+        <!-- 标题区域 -->
+        <div class="text-center mb-10">
+            <h2 class="text-[clamp(28px,5vw,42px)] font-black text-gray-900 mb-3 leading-tight">
+                上传图片，
+                <span class="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+                    发现相似
+                </span>
+            </h2>
+            <p class="text-gray-500 text-[16px] max-w-xl mx-auto leading-relaxed">
+                基于深度学习的向量检索技术，毫秒级精准匹配图像库中的相似内容
+            </p>
+        </div>
+
+        <!-- 搜索选项卡 -->
+        <div class="flex justify-center mb-6">
+            <div class="inline-flex bg-gray-100 rounded-xl p-1.5">
+                <button class="tab-btn active px-6 py-2.5 rounded-lg font-medium text-sm transition-all" data-tab="upload">
+                    📁 本地上传
+                </button>
+                <button class="tab-btn px-6 py-2.5 rounded-lg font-medium text-sm text-gray-600 hover:text-gray-900 transition-all" data-tab="url">
+                    🔗 图片链接
+                </button>
+                <button class="tab-btn px-6 py-2.5 rounded-lg font-medium text-sm text-gray-600 hover:text-gray-900 transition-all" data-tab="paste">
+                    📋 粘贴截图
+                </button>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="glass-card rounded-2xl p-6 md:p-8 shadow-xl mb-8">
+            <!-- 本地上传面板 -->
+            <div id="panel-upload" class="tab-panel">
+                <div id="uploadZone" class="upload-zone rounded-xl p-8 md:p-12 text-center cursor-pointer">
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    <div id="uploadPlaceholder">
+                        <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center">
+                            <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-lg font-semibold text-gray-700 mb-2">拖拽图片到此处，或点击选择</p>
+                        <p class="text-sm text-gray-400">支持 JPG、PNG、WEBP 格式，最大 10MB</p>
+                    </div>
+                    <div id="imagePreview" class="hidden">
+                        <div class="preview-wrapper" id="uploadPreviewWrapper">
+                            <img id="previewImg" class="preview-image mx-auto rounded-lg shadow-lg" alt="预览图">
+                            <canvas id="uploadBboxCanvas" class="bbox-canvas"></canvas>
+                        </div>
+                        <div id="uploadBboxLegend" class="hidden mt-3 flex items-center justify-center gap-5 text-sm text-gray-600"></div>
+                        <button id="reuploadBtn" class="mt-4 text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2 mx-auto">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            重新选择图片
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- URL面板 -->
+            <div id="panel-url" class="tab-panel hidden">
+                <div class="flex flex-col md:flex-row gap-3">
+                    <input type="url" id="imageUrl" placeholder="请输入图片URL地址，例如 https://example.com/image.jpg" aria-label="图片URL地址"
+                           class="flex-1 px-5 py-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-[15px]">
+                    <button id="loadUrlBtn" class="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/25 whitespace-nowrap">
+                        加载图片
+                    </button>
+                </div>
+                <div id="urlPreview" class="hidden mt-6 text-center">
+                    <div class="preview-wrapper" id="urlPreviewWrapper">
+                        <img id="urlPreviewImg" class="preview-image mx-auto rounded-lg shadow-lg" alt="URL预览">
+                        <canvas id="urlBboxCanvas" class="bbox-canvas"></canvas>
+                    </div>
+                    <div id="urlBboxLegend" class="hidden mt-3 flex items-center justify-center gap-5 text-sm text-gray-600"></div>
+                </div>
+            </div>
+
+            <!-- 粘贴面板 -->
+            <div id="panel-paste" class="tab-panel hidden">
+                <div id="pasteZone" class="upload-zone rounded-xl p-8 md:p-12 text-center cursor-pointer" tabindex="0">
+                    <div id="pastePlaceholder">
+                        <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-purple-50 flex items-center justify-center">
+                            <svg class="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                        <p class="text-lg font-semibold text-gray-700 mb-2">按 Ctrl+V / ⌘+V 粘贴截图</p>
+                        <p class="text-sm text-gray-400">支持从剪贴板直接粘贴屏幕截图</p>
+                    </div>
+                    <div id="pastePreview" class="hidden">
+                        <div class="preview-wrapper" id="pastePreviewWrapper">
+                            <img id="pastePreviewImg" class="preview-image mx-auto rounded-lg shadow-lg mb-0" alt="粘贴预览">
+                            <canvas id="pasteBboxCanvas" class="bbox-canvas"></canvas>
+                        </div>
+                        <div id="pasteBboxLegend" class="hidden mt-3 flex items-center justify-center gap-5 text-sm text-gray-600"></div>
+                        <button id="repasteBtn" class="mt-4 text-purple-600 hover:text-purple-700 font-medium text-sm flex items-center gap-2 mx-auto">
+                            重新粘贴
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜索参数 -->
+            <div class="mt-6 pt-6 border-t border-gray-100">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2" for="threshold">
+                            相似度阈值: <span id="thresholdValue" class="text-blue-600 font-bold">0.6</span>
+                        </label>
+                        <input type="range" id="threshold" min="0.3" max="1" step="0.1" value="0.6" class="w-full" aria-label="相似度阈值">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>宽松 (0.3)</span>
+                            <span>严格 (1)</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2" for="topk">
+                            返回结果数量: <span id="topkValue" class="text-blue-600 font-bold">12</span> 张
+                        </label>
+                        <input type="range" id="topk" min="4" max="48" step="4" value="12" class="w-full" aria-label="返回结果数量">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>4 张</span>
+                            <span>48 张</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜索按钮 -->
+            <div class="mt-8 flex justify-center">
+                <button id="searchBtn" disabled class="group px-10 py-4 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-bold rounded-xl transition-all shadow-xl shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center gap-3 text-lg">
+                    <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    开始搜索
+                </button>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loadingState" class="hidden text-center py-16">
+            <div class="relative inline-block mb-6">
+                <div class="loading-spinner mx-auto"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-blue-200 pulse-ring"></div>
+            </div>
+            <p class="text-lg font-medium text-gray-700 mb-2">正在提取图像特征并检索...</p>
+            <p class="text-sm text-gray-400">AI 正在理解图像内容，请稍候</p>
+        </div>
+
+        <!-- 最佳匹配结果卡片 -->
+        <div id="bestMatchSection" class="hidden mb-8">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-1.5 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></span>
+                最佳匹配
+            </h3>
+            <div id="bestMatchCard" class="match-card rounded-2xl p-5 md:p-6 shadow-lg flex flex-col md:flex-row gap-6 items-center">
+                <!-- 由JS填充 -->
+            </div>
+        </div>
+
+        <!-- 结果区域 -->
+        <div id="resultsSection" class="hidden">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-gray-900">
+                    搜索结果 
+                    <span id="resultCount" class="text-blue-600"></span>
+                </h3>
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                    <span id="searchTime"></span>
+                    <button id="newSearchBtn" class="ml-4 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+                        新搜索
+                    </button>
+                </div>
+            </div>
+            <div id="resultsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                <!-- 结果卡片将通过JS动态插入 -->
+            </div>
+        </div>
+
+        <!-- 示例图片 -->
+        <div id="exampleSection" class="mt-12">
+            <h3 class="text-lg font-bold text-gray-700 mb-4 text-center">
+                没有图片？试试这些示例
+            </h3>
+            <div class="grid grid-cols-4 md:grid-cols-8 gap-3" id="exampleImages">
+                <!-- 示例图片占位 -->
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="mt-16 py-8 border-t border-gray-200/50 text-center text-gray-400 text-sm">
+        <p>智能图像检索系统 · 基于深度学习向量检索技术</p>
+    </footer>
+
+    <script>
+        // ========== 配置区域 ==========
+        // 后端API地址 - 根据你的实际后端修改
+        const API_CONFIG = {
+            searchUrl: '/api/search',           // 以图搜图接口
+            exampleDataUrl: '/data/examples',   // 示例图片数据接口
+            imageBaseUrl: '/gallery/',          // 结果图片的基础URL前缀（拼接 path 字段）
+            timeout: 30000
+        };
+
+        // ========== 检测框颜色配置 ==========
+        const BBOX_COLORS = {
+            match: {           // 最佳匹配 rect - 绿色加粗
+                stroke: '#10b981',
+                fill: 'rgba(16, 185, 129, 0.15)',
+                lineWidth: 3,
+                label: '最佳匹配',
+                labelBg: '#10b981'
+            },
+            candidate: {       // 候选 candis - 橙色虚线
+                stroke: '#f59e0b',
+                fill: 'rgba(245, 158, 11, 0.10)',
+                lineWidth: 2,
+                lineDash: [8, 4],
+                labelPrefix: '候选',
+                labelBg: '#f59e0b'
+            }
+        };
+
+        // ========== 状态管理 ==========
+        let currentImage = null;  // 当前选中的图片，结构统一为 { type: 'file', data: File对象, base64: 预览用DataURL }
+        let currentTab = 'upload';
+        let searchStartTime = 0;
+        // 存储各面板预览图的原始尺寸，用于坐标换算
+        const previewMeta = { upload: null, url: null, paste: null };
+        // 当前激活面板
+        let activePanelKey = 'upload';
+
+        // ========== DOM 元素 ==========
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        const reuploadBtn = document.getElementById('reuploadBtn');
+        const searchBtn = document.getElementById('searchBtn');
+        const thresholdSlider = document.getElementById('threshold');
+        const thresholdValue = document.getElementById('thresholdValue');
+        const topkSlider = document.getElementById('topk');
+        const topkValue = document.getElementById('topkValue');
+        const loadingState = document.getElementById('loadingState');
+        const bestMatchSection = document.getElementById('bestMatchSection');
+        const bestMatchCard = document.getElementById('bestMatchCard');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const resultCount = document.getElementById('resultCount');
+        const searchTime = document.getElementById('searchTime');
+        const newSearchBtn = document.getElementById('newSearchBtn');
+        const imageUrlInput = document.getElementById('imageUrl');
+        const loadUrlBtn = document.getElementById('loadUrlBtn');
+        const urlPreview = document.getElementById('urlPreview');
+        const urlPreviewImg = document.getElementById('urlPreviewImg');
+        const pasteZone = document.getElementById('pasteZone');
+        const pastePlaceholder = document.getElementById('pastePlaceholder');
+        const pastePreview = document.getElementById('pastePreview');
+        const pastePreviewImg = document.getElementById('pastePreviewImg');
+        const repasteBtn = document.getElementById('repasteBtn');
+        const exampleSection = document.getElementById('exampleSection');
+        const exampleImages = document.getElementById('exampleImages');
+
+        // 三个面板的 canvas 和 legend
+        const panels = {
+            upload: {
+                canvas: document.getElementById('uploadBboxCanvas'),
+                legend: document.getElementById('uploadBboxLegend'),
+                img: previewImg
+            },
+            url: {
+                canvas: document.getElementById('urlBboxCanvas'),
+                legend: document.getElementById('urlBboxLegend'),
+                img: urlPreviewImg
+            },
+            paste: {
+                canvas: document.getElementById('pasteBboxCanvas'),
+                legend: document.getElementById('pasteBboxLegend'),
+                img: pastePreviewImg
+            }
+        };
+
+        // ========== 选项卡切换 ==========
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                currentTab = tab;
+                activePanelKey = tab;
+                
+                // 更新按钮状态
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.classList.add('text-gray-600');
+                });
+                btn.classList.add('active');
+                btn.classList.remove('text-gray-600');
+                
+                // 更新面板显示
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                document.getElementById(`panel-${tab}`).classList.remove('hidden');
+                
+                // 重置搜索按钮状态
+                resetSearchState();
+            });
+        });
+
+        // ========== 滑块值更新 ==========
+        thresholdSlider.addEventListener('input', () => {
+            thresholdValue.textContent = thresholdSlider.value;
+        });
+
+        topkSlider.addEventListener('input', () => {
+            topkValue.textContent = topkSlider.value;
+        });
+
+        // ========== 工具函数：URL 转 File 对象 ==========
+        /**
+         * 将远程图片URL下载并转换为File对象，保证三种输入方式统一提交File
+         * @param {string} url - 图片URL
+         * @returns {Promise<File>} 图片文件对象
+         */
+        async function urlToFile(url) {
+            // 尝试通过fetch下载（要求服务器支持CORS）
+            let response;
+            try {
+                response = await fetch(url, { mode: 'cors' });
+            } catch (e) {
+                throw new Error('跨域限制：无法下载该图片，请确保图片服务器允许跨域访问（CORS），或使用本地上传/粘贴方式');
+            }
+
+            if (!response.ok) {
+                throw new Error(`下载失败 (HTTP ${response.status})`);
+            }
+
+            const blob = await response.blob();
+
+            // 推断文件扩展名
+            let ext = 'jpg';
+            const mime = blob.type || '';
+            if (mime.includes('png')) ext = 'png';
+            else if (mime.includes('webp')) ext = 'webp';
+            else if (mime.includes('gif')) ext = 'gif';
+            else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+            else if (mime.includes('bmp')) ext = 'bmp';
+
+            // 从URL中尝试提取文件名
+            let filename = `image_from_url.${ext}`;
+            try {
+                const urlPath = new URL(url).pathname;
+                const urlName = urlPath.split('/').pop();
+                if (urlName && urlName.includes('.')) {
+                    filename = decodeURIComponent(urlName);
+                }
+            } catch (e) { /* 忽略URL解析错误 */ }
+
+            const file = new File([blob], filename, { type: blob.type || `image/${ext}` });
+
+            if (file.size > 10 * 1024 * 1024) {
+                throw new Error('图片大小超过 10MB 限制');
+            }
+
+            return file;
+        }
+
+        // ========== 构造结果图片 URL ==========
+        function buildImageUrl(path) {
+            // 如果 path 已经是完整 URL 则直接返回
+            if (!path) return '';
+            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+                return path;
+            }
+            // 拼接基础URL，避免双斜杠
+            const base = API_CONFIG.imageBaseUrl.replace(/\/+$/, '');
+            const p = path.replace(/^\/+/, '');
+            return `${base}/${p}`;
+        }
+
+        // ========== 检测框绘制核心函数 ==========
+        /**
+         * 在指定面板的 canvas 上绘制检测框
+         * @param {string} panelKey - 'upload' | 'url' | 'paste'
+         * @param {Object} data - 接口返回的 data 字段（含 rect / candis）
+         * @param {number} naturalW - 原图宽度
+         * @param {number} naturalH - 原图高度
+         */
+        function drawBoundingBoxes(panelKey, data, naturalW, naturalH) {
+            const { canvas, img } = panels[panelKey];
+            const ctx = canvas.getContext('2d');
+
+            // 等待图片完成布局（确保clientWidth/Height准确）
+            requestAnimationFrame(() => {
+                // 读取图片实际显示尺寸（考虑object-fit: contain后的letterbox）
+                const dispW = img.clientWidth;
+                const dispH = img.clientHeight;
+                if (dispW === 0 || dispH === 0) return;
+
+                // 设置 canvas 物理像素尺寸匹配显示尺寸（考虑设备像素比避免模糊）
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = dispW * dpr;
+                canvas.height = dispH * dpr;
+                canvas.style.width = dispW + 'px';
+                canvas.style.height = dispH + 'px';
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                // 清空
+                ctx.clearRect(0, 0, dispW, dispH);
+
+                // 计算 object-fit: contain 下，图片在img元素中的实际绘制区域
+                const imgRatio = naturalW / naturalH;
+                const boxRatio = dispW / dispH;
+                let drawW, drawH, offsetX, offsetY;
+                if (imgRatio > boxRatio) {
+                    // 宽度铺满，上下留白
+                    drawW = dispW;
+                    drawH = dispW / imgRatio;
+                    offsetX = 0;
+                    offsetY = (dispH - drawH) / 2;
+                } else {
+                    // 高度铺满，左右留白
+                    drawH = dispH;
+                    drawW = dispH * imgRatio;
+                    offsetX = (dispW - drawW) / 2;
+                    offsetY = 0;
+                }
+
+                // 缩放比例：原图坐标 -> 绘制区域坐标
+                const scaleX = drawW / naturalW;
+                const scaleY = drawH / naturalH;
+
+                // 坐标转换函数
+                const toCanvas = (rect) => {
+                    const [x1, y1, x2, y2] = rect;
+                    return {
+                        x: offsetX + x1 * scaleX,
+                        y: offsetY + y1 * scaleY,
+                        w: (x2 - x1) * scaleX,
+                        h: (y2 - y1) * scaleY
+                    };
+                };
+
+                // 先画候选框（橙色虚线，在底层）
+                let hasCandidates = false;
+                if (Array.isArray(data.candis) && data.candis.length > 0) {
+                    data.candis.forEach((cand, idx) => {
+                        if (!cand.rect || cand.rect.length !== 4) return;
+                        hasCandidates = true;
+                        drawBox(ctx, toCanvas(cand.rect), BBOX_COLORS.candidate, {
+                            label: `候选${idx + 1} ${cand.probability ? (cand.probability * 100).toFixed(1) + '%' : ''}`.trim(),
+                            isDashed: true
+                        });
+                    });
+                }
+
+                // 再画最佳匹配框（绿色实线，加粗，在顶层）
+                let hasMatch = false;
+                if (data.rect && data.rect.length === 4) {
+                    hasMatch = true;
+                    const matchScore = data.match && data.match.score ? (data.match.score * 100).toFixed(1) + '%' : '';
+                    const matchLabel = data.match ? `${data.match.name} ${matchScore}`.trim() : '最佳匹配';
+                    drawBox(ctx, toCanvas(data.rect), BBOX_COLORS.match, {
+                        label: matchLabel,
+                        isDashed: false,
+                        isBest: true
+                    });
+                }
+
+                // 显示图例
+                showLegend(panelKey, hasMatch, hasCandidates);
+            });
+        }
+
+        /**
+         * 绘制单个矩形框+标签
+         */
+        function drawBox(ctx, box, color, opts) {
+            const { x, y, w, h } = box;
+            const { label, isDashed, isBest } = opts;
+
+            // 半透明填充
+            ctx.fillStyle = color.fill;
+            ctx.fillRect(x, y, w, h);
+
+            // 边框
+            ctx.strokeStyle = color.stroke;
+            ctx.lineWidth = color.lineWidth;
+            ctx.lineJoin = 'round';
+            if (isDashed && color.lineDash) {
+                ctx.setLineDash(color.lineDash);
+            } else {
+                ctx.setLineDash([]);
+            }
+            ctx.strokeRect(x, y, w, h);
+            ctx.setLineDash([]);
+
+            // 标签
+            if (label) {
+                const fontSize = isBest ? 14 : 13;
+                ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif`;
+                const textMetrics = ctx.measureText(label);
+                const textW = textMetrics.width + (isBest ? 14 : 10);
+                const textH = isBest ? 26 : 22;
+
+                // 标签放在框上方，如果超出顶部则放在框内
+                let labelX = x;
+                let labelY = y - textH - 4;
+                if (labelY < 0) labelY = y + 4;
+
+                // 统一标签样式：彩色背景 + 白色文字（最佳匹配绿色背景，候选橙色背景）
+                ctx.fillStyle = color.labelBg;
+                roundRect(ctx, labelX, labelY, textW, textH, 4);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, labelX + (isBest ? 7 : 5), labelY + textH / 2);
+            }
+        }
+
+        /**
+         * 圆角矩形路径
+         */
+        function roundRect(ctx, x, y, w, h, r) {
+            r = Math.min(r, w / 2, h / 2);
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        /**
+         * 显示颜色图例
+         */
+        function showLegend(panelKey, hasMatch, hasCandidates) {
+            const legendEl = panels[panelKey].legend;
+            if (!hasMatch && !hasCandidates) {
+                legendEl.classList.add('hidden');
+                return;
+            }
+            let html = '';
+            if (hasMatch) {
+                html += `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 h-1 rounded legend-match"></span>最佳匹配 (rect)</span>`;
+            }
+            if (hasCandidates) {
+                html += `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 h-0.5 border-t-2 border-dashed border-amber-500"></span>候选 (candis)</span>`;
+            }
+            legendEl.innerHTML = html;
+            legendEl.classList.remove('hidden');
+        }
+
+        /**
+         * 清空指定面板的检测框
+         */
+        function clearBBox(panelKey) {
+            const { canvas, legend } = panels[panelKey];
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = 0;
+            canvas.height = 0;
+            legend.classList.add('hidden');
+            legend.innerHTML = '';
+        }
+
+        /**
+         * 清空所有面板的检测框
+         */
+        function clearAllBBoxes() {
+            Object.keys(panels).forEach(clearBBox);
+        }
+
+        // ========== 设置预览图并记录元信息 ==========
+        function setPreviewImage(panelKey, src, file) {
+            const { img } = panels[panelKey];
+            previewMeta[panelKey] = null;
+            clearBBox(panelKey);
+
+            img.onload = () => {
+                previewMeta[panelKey] = {
+                    naturalW: img.naturalWidth,
+                    naturalH: img.naturalHeight
+                };
+            };
+            img.src = src;
+        }
+
+        // ========== 本地上传功能 ==========
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target.closest('#reuploadBtn')) return;
+            fileInput.click();
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                handleImageFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        reuploadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetImagePreview();
+            fileInput.click();
+        });
+
+        function handleImageFile(file) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert('图片大小不能超过 10MB');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImage = {
+                    type: 'file',
+                    data: file,
+                    base64: e.target.result
+                };
+                uploadPlaceholder.classList.add('hidden');
+                imagePreview.classList.remove('hidden');
+                setPreviewImage('upload', e.target.result, file);
+                enableSearch();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetImagePreview() {
+            uploadPlaceholder.classList.remove('hidden');
+            imagePreview.classList.add('hidden');
+            previewImg.src = '';
+            previewMeta.upload = null;
+            clearBBox('upload');
+            currentImage = null;
+            searchBtn.disabled = true;
+        }
+
+        // ========== URL加载功能 ==========
+        loadUrlBtn.addEventListener('click', async () => {
+            const url = imageUrlInput.value.trim();
+            if (!url) {
+                alert('请输入图片URL');
+                return;
+            }
+            
+            // 验证URL格式
+            try {
+                new URL(url);
+            } catch {
+                alert('请输入有效的URL地址');
+                return;
+            }
+            
+            // 显示加载状态
+            loadUrlBtn.disabled = true;
+            loadUrlBtn.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>加载中...';
+            urlPreview.classList.add('hidden');
+            clearBBox('url');
+
+            try {
+                // 将URL图片下载为File对象（统一与本地上传一致）
+                const file = await urlToFile(url);
+
+                // 读取File为DataURL用于预览
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    urlPreview.classList.remove('hidden');
+                    currentImage = {
+                        type: 'file',
+                        data: file,
+                        base64: e.target.result
+                    };
+                    setPreviewImage('url', e.target.result, file);
+                    loadUrlBtn.disabled = false;
+                    loadUrlBtn.textContent = '加载图片';
+                    enableSearch();
+                };
+                reader.onerror = () => {
+                    throw new Error('图片预览失败');
+                };
+                reader.readAsDataURL(file);
+            } catch (err) {
+                alert('无法加载图片：' + err.message);
+                loadUrlBtn.disabled = false;
+                loadUrlBtn.textContent = '加载图片';
+            }
+        });
+
+        // ========== 粘贴功能 ==========
+        pasteZone.addEventListener('click', () => {
+            pasteZone.focus();
+        });
+
+        document.addEventListener('paste', (e) => {
+            if (currentTab !== 'paste') return;
+            
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        pastePlaceholder.classList.add('hidden');
+                        pastePreview.classList.remove('hidden');
+                        currentImage = {
+                            type: 'file',
+                            data: file,
+                            base64: ev.target.result
+                        };
+                        setPreviewImage('paste', ev.target.result, file);
+                        enableSearch();
+                    };
+                    reader.readAsDataURL(file);
+                    break;
+                }
+            }
+        });
+
+        repasteBtn.addEventListener('click', () => {
+            pastePlaceholder.classList.remove('hidden');
+            pastePreview.classList.add('hidden');
+            pastePreviewImg.src = '';
+            previewMeta.paste = null;
+            clearBBox('paste');
+            currentImage = null;
+            searchBtn.disabled = true;
+            pasteZone.focus();
+        });
+
+        // ========== 搜索功能 ==========
+        let lastDrawData = null;
+        function enableSearch() {
+            searchBtn.disabled = false;
+        }
+
+        function resetSearchState() {
+            currentImage = null;
+            searchBtn.disabled = true;
+            resultsSection.classList.add('hidden');
+            bestMatchSection.classList.add('hidden');
+            loadingState.classList.add('hidden');
+            exampleSection.classList.remove('hidden');
+
+            // 重置所有面板
+            clearAllBBoxes();
+            resetImagePreview();
+            urlPreview.classList.add('hidden');
+            urlPreviewImg.src = '';
+            previewMeta.url = null;
+            imageUrlInput.value = '';
+            pastePlaceholder.classList.remove('hidden');
+            pastePreview.classList.add('hidden');
+            pastePreviewImg.src = '';
+            previewMeta.paste = null;
+        }
+
+        newSearchBtn.addEventListener('click', resetSearchState);
+
+        searchBtn.addEventListener('click', async () => {
+            if (!currentImage) return;
+            
+            searchStartTime = Date.now();
+
+            // 显示加载状态
+            loadingState.classList.remove('hidden');
+            bestMatchSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            searchBtn.disabled = true;
+            clearAllBBoxes();
+            
+            try {
+                const result = await performSearch();
+                displayResults(result.data);
+                // 绘制检测框
+                drawBoxesOnActivePanel(result.data);
+            } catch (error) {
+                console.error('搜索失败:', error);
+                alert('搜索失败: ' + error.message);
+            } finally {
+                loadingState.classList.add('hidden');
+                searchBtn.disabled = false;
+            }
+        });
+
+        async function performSearch() {
+            const formData = new FormData();
+            formData.append('threshold', thresholdSlider.value);
+            formData.append('topk', topkSlider.value);
+
+            // 三种输入方式（本地上传/图片链接/粘贴截图）统一提交File对象
+            // 图片链接输入会在加载阶段已通过fetch下载并转为File对象
+            formData.append('image', currentImage.data);
+
+            // ===== 这里调用你的后端API =====
+            // 取消下方注释以使用真实API
+            const response = await fetch(API_CONFIG.searchUrl, {
+                method: 'POST',
+                body: formData,
+                signal: AbortSignal.timeout(API_CONFIG.timeout)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return response.json();
+        }
+
+        /**
+         * 在当前激活的预览面板上绘制检测框
+         */
+        function drawBoxesOnActivePanel(data) {
+            lastDrawData = data;
+            const tryDraw = () => {
+                const meta = previewMeta[activePanelKey];
+                const { img } = panels[activePanelKey];
+                const nw = meta ? meta.naturalW : img.naturalWidth;
+                const nh = meta ? meta.naturalH : img.naturalHeight;
+                if (nw && nh) {
+                    drawBoundingBoxes(activePanelKey, data, nw, nh);
+                } else {
+                    // 等待图片加载
+                    img.addEventListener('load', () => {
+                        previewMeta[activePanelKey] = {
+                            naturalW: img.naturalWidth,
+                            naturalH: img.naturalHeight
+                        };
+                        drawBoundingBoxes(activePanelKey, data, img.naturalWidth, img.naturalHeight);
+                    }, { once: true });
+                }
+            };
+            // 确保图片已显示（浏览器已完成布局）再绘制
+            setTimeout(tryDraw, 100);
+        }
+
+        /**
+         * 渲染结果（最佳匹配 + 相似列表）
+         */
+        function displayResults(data) {
+            const elapsed = ((Date.now() - searchStartTime) / 1000).toFixed(2);
+            const match = data.match;
+            const similarList = data.similarList || [];
+            const totalCount = similarList.length;
+
+            searchTime.textContent = `耗时 ${elapsed}s`;
+            resultCount.textContent = `(共 ${totalCount} 张)`;
+
+            // ========== 最佳匹配卡片 ==========
+            if (match) {
+                const matchScore = (match.score * 100).toFixed(2);
+                const matchImgUrl = buildImageUrl(match.path);
+                const scoreColor = match.score > 0.9 ? 'text-green-600' : match.score > 0.8 ? 'text-blue-600' : 'text-amber-600';
+                bestMatchCard.innerHTML = `
+                    <div class="w-full md:w-48 h-48 flex-shrink-0 rounded-xl overflow-hidden bg-white shadow-md">
+                        <img src="${matchImgUrl}" alt="${match.name}" class="w-full h-full object-cover" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-gray-300 text-sm\\'>暂无图片</div>'">
+                    </div>
+                    <div class="flex-1 text-center md:text-left">
+                        <div class="inline-flex items-center gap-2 best-match-badge px-3 py-1 rounded-full text-xs font-bold mb-3">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                            最佳匹配
+                        </div>
+                        <h2 class="text-2xl md:text-3xl font-black text-gray-900 mb-2">${match.name || '未知物体'}</h2>
+                        <p class="text-sm text-gray-500 mb-4 font-mono break-all">路径: ${match.path || '-'} · MD5: ${match.md5 || '-'}</p>
+                        <div class="flex items-center gap-4 justify-center md:justify-start flex-wrap">
+                            <div>
+                                <div class="text-xs text-gray-500 mb-1">匹配度</div>
+                                <div class="text-3xl font-black ${scoreColor}">${matchScore}%</div>
+                            </div>
+                            <div class="w-px h-12 bg-gray-200 hidden md:block"></div>
+                            <div class="w-full md:w-64">
+                                <div class="w-full bg-white/60 rounded-full h-3 overflow-hidden shadow-inner">
+                                    <div class="similarity-bar h-full rounded-full" style="width:0%" data-width="${matchScore}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                bestMatchSection.classList.remove('hidden');
+            } else {
+                bestMatchSection.classList.add('hidden');
+            }
+
+            // ========== 相似图片网格 ==========
+            resultsGrid.innerHTML = '';
+            // 去掉已经作为最佳匹配展示的那张（第一条与match相同）
+            const listToShow = similarList;
+            listToShow.forEach((item, index) => {
+                const similarityPercent = (item.score * 100).toFixed(1);
+                const isBest = match && item.path === match.path && Math.abs(item.score - match.score) < 1e-6;
+                const imgUrl = buildImageUrl(item.path);
+                const card = document.createElement('div');
+                card.className = `result-card bg-white rounded-xl overflow-hidden shadow-md cursor-pointer ${isBest ? 'ring-2 ring-green-400' : ''}`;
+                card.style.animationDelay = `${index * 0.05}s`;
+
+                card.innerHTML = `
+                    <div class="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                        <img src="${imgUrl}" alt="${item.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-gray-300 text-xs\\'>图片加载失败</div>'">
+                        ${isBest ? '<div class="absolute top-2 left-2 best-match-badge px-2 py-0.5 rounded text-[10px] font-bold">最佳</div>' : ''}
+                        <div class="absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-bold ${
+                    item.score > 0.9 ? 'bg-green-500 text-white' :
+                        item.score > 0.8 ? 'bg-blue-500 text-white' :
+                            item.score > 0.7 ? 'bg-yellow-500 text-white' :
+                                'bg-gray-400 text-white'
+                }">
+                            ${similarityPercent}%
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-800 truncate mb-2" title="${item.name}">${item.name || '未知'}</p>
+                        <div class="w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div class="similarity-bar" style="width: 0%" data-width="${similarityPercent}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2 font-mono truncate" title="${item.path}">${item.path || ''}</p>
+                    </div>
+                `;
+
+                resultsGrid.appendChild(card);
+                card.addEventListener('click', () => {
+                    window.open(imgUrl, '_blank');
+                });
+            });
+
+            resultsSection.classList.remove('hidden');
+            exampleSection.classList.add('hidden');
+
+            // 动画显示相似度条
+            setTimeout(() => {
+                document.querySelectorAll('.similarity-bar').forEach(bar => {
+                    bar.style.width = bar.dataset.width;
+                });
+            }, 100);
+
+            // 滚动到最佳匹配位置
+            const scrollTarget = match ? bestMatchSection : resultsSection;
+            scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ========== 窗口 resize 时重绘检测框（防抖）==========
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                // 重绘当前面板的检测框（需要保存上次的data）
+                if (lastDrawData) {
+                    const meta = previewMeta[activePanelKey];
+                    const { img } = panels[activePanelKey];
+                    const nw = meta ? meta.naturalW : img.naturalWidth;
+                    const nh = meta ? meta.naturalH : img.naturalHeight;
+                    if (nw && nh) {
+                        drawBoundingBoxes(activePanelKey, lastDrawData, nw, nh);
+                    }
+                }
+            }, 200);
+        });
+
+        // ========== 示例图片 ==========
+        async function initExampleImages() {
+            const response = await fetch(API_CONFIG.exampleDataUrl, {
+                signal: AbortSignal.timeout(API_CONFIG.timeout)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+
+            const examples = [];
+            for (let url of result.data) {
+                examples.push(url);
+            }
+
+            examples.forEach((url, i) => {
+                const div = document.createElement('div');
+                div.className = 'aspect-square rounded-lg overflow-hidden cursor-pointer opacity-80 hover:opacity-100 hover:scale-105 transition-all shadow-sm';
+                div.innerHTML = `<img src="${url}" alt="示例${i+1}" class="w-full h-full object-cover">`;
+                div.addEventListener('click', async () => {
+                    // 切换到上传tab
+                    document.querySelector('.tab-btn[data-tab="upload"]').click();
+
+                    // 显示占位符的加载状态
+                    uploadPlaceholder.classList.add('hidden');
+                    imagePreview.classList.add('hidden');
+
+                    try {
+                        // 将示例图URL下载转File（保持与其他方式一致）
+                        const file = await urlToFile(url);
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            currentImage = {
+                                type: 'file',
+                                data: file,
+                                base64: e.target.result
+                            };
+                            uploadPlaceholder.classList.add('hidden');
+                            imagePreview.classList.remove('hidden');
+                            setPreviewImage('upload', e.target.result, file);
+                            enableSearch();
+                        };
+                        reader.readAsDataURL(file);
+                    } catch (err) {
+                        // 示例图若因跨域无法下载，回退为直接显示（仅用于演示）
+                        console.warn('示例图下载失败，回退为直接预览：', err);
+                        uploadPlaceholder.classList.add('hidden');
+                        imagePreview.classList.remove('hidden');
+                        setPreviewImage('upload', url, null);
+                        // 尝试直接创建一个File对象供提交（使用Canvas兜底）
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        img.onload = () => {
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.naturalWidth;
+                                canvas.height = img.naturalHeight;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0);
+                                canvas.toBlob((blob) => {
+                                    if (blob) {
+                                        const fallbackFile = new File([blob], `example_${i+1}.jpg`, { type: 'image/jpeg' });
+                                        currentImage = { type: 'file', data: fallbackFile };
+                                        previewMeta.upload = { naturalW: img.naturalWidth, naturalH: img.naturalHeight };
+                                        enableSearch();
+                                    }
+                                }, 'image/jpeg', 0.95);
+                            } catch (e) {
+                                alert('示例图片因跨域限制无法加载为File对象，请使用本地上传体验完整功能');
+                            }
+                        };
+                        img.onerror = () => {
+                            alert('示例图片加载失败');
+                        };
+                        img.src = url;
+                    }
+                });
+                exampleImages.appendChild(div);
+            });
+        }
+
+        // ========== 初始化 ==========
+        initExampleImages();
+    </script>
+</body>
+</html>

@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>向量更新 - 智能图像检索系统</title>
+    <script src="https://aisearch-task.bj.bcebos.com/static/tailwindcss-3.4.17.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 50%, #f0f4f8 100%);
+            min-height: 100vh;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s cubic-bezier(.2,.8,.2,1);
+            background: rgba(255,255,255,0.7);
+        }
+        
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        
+        .upload-zone.drag-over {
+            border-style: solid;
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.15);
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: color 0.2s;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: #3b82f6;
+            transition: width 0.3s;
+        }
+        
+        .nav-link:hover::after,
+        .nav-link.active::after {
+            width: 100%;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .file-item {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .progress-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        .stat-card {
+            transition: all 0.3s cubic-bezier(.2,.8,.2,1);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        
+        .log-entry {
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 13px;
+            padding: 6px 12px;
+            border-left: 3px solid transparent;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .log-info { border-color: #3b82f6; color: #1e40af; }
+        .log-success { border-color: #10b981; color: #065f46; }
+        .log-warning { border-color: #f59e0b; color: #92400e; }
+        .log-error { border-color: #ef4444; color: #991b1b; }
+        
+        .batch-item {
+            transition: all 0.2s;
+        }
+        
+        .batch-item:hover {
+            background: #f8fafc;
+        }
+        
+        .batch-item.completed {
+            background: #f0fdf4;
+        }
+        
+        .batch-item.error {
+            background: #fef2f2;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #10b981;
+        }
+        
+        .remove-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .file-item:hover .remove-btn {
+            opacity: 1;
+        }
+        
+        .folder-tree-item {
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .folder-tree-item:hover {
+            background: #f1f5f9;
+        }
+        
+        .folder-tree-item.selected {
+            background: #ecfdf5;
+            color: #059669;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="glass-card sticky top-0 z-50 px-6 py-4 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                    </svg>
+                </div>
+                <h1 class="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                    向量库管理
+                </h1>
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="index.html" class="nav-link text-gray-600 hover:text-gray-900 font-medium">以图搜图</a>
+                <a href="vector-update.html" class="nav-link active text-gray-700 font-medium">向量更新</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- 标题区域 -->
+        <div class="mb-8">
+            <h2 class="text-[clamp(24px,4vw,36px)] font-black text-gray-900 mb-2">向量库更新管理（演示）</h2>
+            <p class="text-gray-500 text-[16px]">上传新图片并提取特征向量，或管理、删除已存在的图像索引</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="stat-card glass-card rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-500 text-sm">图像总数</span>
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-2xl font-bold text-gray-900" id="totalImages">1,068</p>
+                <p class="text-xs text-emerald-600 mt-1">↑ 今日 +18</p>
+            </div>
+            
+            <div class="stat-card glass-card rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-500 text-sm">向量维度</span>
+                    <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">512 维</p>
+                <p class="text-xs text-gray-400 mt-1">PP-LCNet 特征</p>
+            </div>
+            
+            <div class="stat-card glass-card rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-500 text-sm">索引大小</span>
+                    <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">2.71 MB</p>
+                <p class="text-xs text-gray-400 mt-1">Lucene HNSW 索引</p>
+            </div>
+            
+            <div class="stat-card glass-card rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-500 text-sm">服务状态</span>
+                    <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <div class="pulse-dot"></div>
+                    </div>
+                </div>
+                <p class="text-2xl font-bold text-emerald-600">运行中</p>
+                <p class="text-xs text-gray-400 mt-1">最后更新: 刚刚</p>
+            </div>
+        </div>
+
+        <!-- 操作选项卡 -->
+        <div class="flex justify-center mb-6">
+            <div class="inline-flex bg-gray-100 rounded-xl p-1.5">
+                <button class="tab-btn active px-6 py-2.5 rounded-lg font-medium text-sm transition-all" data-tab="add">
+                    ➕ 添加向量
+                </button>
+                <button class="tab-btn px-6 py-2.5 rounded-lg font-medium text-sm text-gray-600 hover:text-gray-900 transition-all" data-tab="delete">
+                    🗑️ 删除向量
+                </button>
+                <button class="tab-btn px-6 py-2.5 rounded-lg font-medium text-sm text-gray-600 hover:text-gray-900 transition-all" data-tab="rebuild">
+                    🔄 重建索引
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：操作区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 添加向量面板 -->
+                <div id="panel-add" class="tab-panel">
+                    <div class="glass-card rounded-2xl p-6 shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            批量上传图片
+                        </h3>
+                        
+                        <div id="batchUploadZone" class="upload-zone rounded-xl p-8 text-center cursor-pointer mb-6">
+                            <input type="file" id="batchFileInput" accept="image/*" multiple class="hidden">
+                            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-50 flex items-center justify-center">
+                                <svg class="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                            </div>
+                            <p class="text-lg font-semibold text-gray-700 mb-2">拖拽图片到此处，或点击选择多张</p>
+                            <p class="text-sm text-gray-400 mb-4">支持批量上传 JPG、PNG、WEBP 格式，单张最大 10MB</p>
+                            <button type="button" class="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors">
+                                选择文件
+                            </button>
+                        </div>
+
+                        <!-- 上传选项 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-xl">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">批量处理并发数</label>
+                                <select id="concurrency" class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" aria-label="批量处理并发数">
+                                    <option value="1">1（串行，最稳定）</option>
+                                    <option value="2">2</option>
+                                    <option value="4" selected>4（推荐）</option>
+                                    <option value="8">8（高性能）</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">重复检测</label>
+                                <select id="duplicateCheck" class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" aria-label="重复检测">
+                                    <option value="ignore">不检测，直接添加</option>
+                                    <option value="skip" selected>检测到重复时跳过</option>
+                                    <option value="overwrite">覆盖原有向量</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 mb-4">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="autoIndex" checked class="rounded">
+                                <span class="text-sm text-gray-700">上传完成后自动更新索引</span>
+                            </label>
+                        </div>
+
+                        <!-- 文件列表 -->
+                        <div id="fileListContainer" class="hidden mb-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-gray-700">待处理文件 (<span id="pendingCount">0</span>)</h4>
+                                <button id="clearFilesBtn" class="text-sm text-red-500 hover:text-red-600 font-medium">清空列表</button>
+                            </div>
+                            <div id="fileList" class="max-h-64 overflow-y-auto space-y-2 pr-2">
+                                <!-- 文件项将动态插入 -->
+                            </div>
+                        </div>
+
+                        <!-- 开始处理按钮 -->
+                        <div class="flex gap-3">
+                            <button id="startProcessBtn" disabled class="flex-1 px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                开始提取特征并入库
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 删除向量面板 -->
+                <div id="panel-delete" class="tab-panel hidden">
+                    <div class="glass-card rounded-2xl p-6 shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            删除向量
+                        </h3>
+                        
+                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-6">
+                            <div class="flex gap-3">
+                                <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                                <div>
+                                    <p class="font-semibold text-amber-800 text-sm">注意</p>
+                                    <p class="text-amber-700 text-sm mt-1">删除操作不可恢复。删除大量向量后建议重建索引以保持检索性能。</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">按图片ID删除（逗号分隔多个ID）</label>
+                                <textarea id="deleteIds" rows="3" placeholder="例如: 1001, 1002, 1003" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none text-sm resize-none" aria-label="按图片ID删除"></textarea>
+                            </div>
+                            
+                            <div class="text-center text-gray-400 text-sm">— 或者 —</div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">上传图片查找相似项并删除</label>
+                                <div id="deleteUploadZone" class="upload-zone rounded-xl p-6 text-center cursor-pointer border-red-200 hover:border-red-400">
+                                    <input type="file" id="deleteFileInput" accept="image/*" class="hidden">
+                                    <div id="deleteUploadPlaceholder">
+                                        <p class="text-gray-600 text-sm">点击上传或拖拽图片到此处</p>
+                                    </div>
+                                    <div id="deletePreview" class="hidden">
+                                        <img id="deletePreviewImg" class="h-24 mx-auto rounded-lg mb-2" alt="预览">
+                                        <button type="button" id="removeDeleteImg" class="text-red-500 text-sm hover:underline">移除</button>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="block text-sm text-gray-600 mb-1">相似度阈值: <span id="deleteThresholdVal" class="font-bold">0.95</span></label>
+                                    <input type="range" id="deleteThreshold" min="0.8" max="1" step="0.01" value="0.95" class="w-full" aria-label="删除相似度阈值">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="deleteBtn" class="w-full mt-6 px-6 py-3.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/25 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            执行删除
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 重建索引面板 -->
+                <div id="panel-rebuild" class="tab-panel hidden">
+                    <div class="glass-card rounded-2xl p-6 shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            重建向量索引
+                        </h3>
+
+                        <p class="text-gray-600 text-[15px] mb-6 leading-relaxed">
+                            当向量库发生大量增删操作后，重建索引可以优化检索性能和召回准确率。重建过程中检索服务将短暂降级。
+                        </p>
+
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">索引类型</label>
+                                <select id="indexType" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" aria-label="索引类型">
+                                    <option value="flat">FLAT - 精确检索（小库推荐，<10万）</option>
+                                    <option value="ivf">IVF - 倒排索引（中等库，10万-100万）</option>
+                                    <option value="hnsw" selected>HNSW - 图索引（大库推荐，>100万，最快）</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">聚类中心数 (nlist)</label>
+                                    <input type="number" id="nlist" value="1024" min="64" max="16384" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" aria-label="聚类中心数">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">探测数量 (nprobe)</label>
+                                    <input type="number" id="nprobe" value="80" min="1" max="1024" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" aria-label="探测数量">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="backupBefore" checked class="rounded">
+                                    <span class="text-sm text-gray-700">重建前备份当前索引</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6">
+                            <div class="flex gap-3">
+                                <svg class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div class="text-sm text-blue-700">
+                                    <p>预计处理时间: <span class="font-bold">约 2-5 分钟</span></p>
+                                    <p class="mt-1">当前图像数量: <span class="font-bold">1,068 张</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="rebuildBtn" class="w-full px-6 py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            开始重建索引
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：处理进度和日志 -->
+            <div class="space-y-6">
+                <!-- 处理进度 -->
+                <div class="glass-card rounded-2xl p-6 shadow-xl">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">处理进度</h3>
+                    
+                    <div id="progressIdle">
+                        <div class="text-center py-8 text-gray-400">
+                            <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <p class="text-sm">暂无正在进行的任务</p>
+                        </div>
+                    </div>
+
+                    <div id="progressRunning" class="hidden">
+                        <div class="mb-4">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="font-medium text-gray-700" id="progressTask">正在处理...</span>
+                                <span class="font-bold text-emerald-600" id="progressPercent">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressBarFill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div class="p-3 bg-emerald-50 rounded-lg">
+                                <p class="text-xl font-bold text-emerald-600" id="successCount">0</p>
+                                <p class="text-xs text-emerald-700">成功</p>
+                            </div>
+                            <div class="p-3 bg-red-50 rounded-lg">
+                                <p class="text-xl font-bold text-red-600" id="errorCount">0</p>
+                                <p class="text-xs text-red-700">失败</p>
+                            </div>
+                            <div class="p-3 bg-gray-50 rounded-lg">
+                                <p class="text-xl font-bold text-gray-600" id="skipCount">0</p>
+                                <p class="text-xs text-gray-700">跳过</p>
+                            </div>
+                        </div>
+
+                        <button id="cancelBtn" class="w-full mt-4 px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors">
+                            取消任务
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 操作日志 -->
+                <div class="glass-card rounded-2xl p-6 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-900">操作日志</h3>
+                        <button id="clearLogBtn" class="text-xs text-gray-400 hover:text-gray-600">清空</button>
+                    </div>
+                    <div id="logContainer" class="h-64 overflow-y-auto space-y-1 bg-gray-50 rounded-lg p-2">
+                        <div class="log-entry log-info text-center text-gray-400 !border-0">
+                            等待操作...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 快捷操作 -->
+                <div class="glass-card rounded-2xl p-6 shadow-xl">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">快捷操作</h3>
+                    <div class="space-y-2">
+                        <button id="exportIndexBtn" class="w-full px-4 py-3 text-left hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900 text-sm">导出向量索引</p>
+                                <p class="text-xs text-gray-400">备份当前向量库到文件</p>
+                            </div>
+                        </button>
+                        <button id="importIndexBtn" class="w-full px-4 py-3 text-left hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900 text-sm">导入向量索引</p>
+                                <p class="text-xs text-gray-400">从备份文件恢复</p>
+                            </div>
+                        </button>
+                        <button id="statsBtn" class="w-full px-4 py-3 text-left hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900 text-sm">向量库统计</p>
+                                <p class="text-xs text-gray-400">查看详细分布信息</p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="mt-16 py-8 border-t border-gray-200/50 text-center text-gray-400 text-sm">
+        <p>智能图像检索系统 · 向量库管理后台</p>
+    </footer>
+
+    <script>
+        // ========== 配置区域 ==========
+        const API_CONFIG = {
+            addUrl: '/api/vector/add',
+            deleteUrl: '/api/vector/delete',
+            rebuildUrl: '/api/vector/rebuild',
+            timeout: 300000
+        };
+
+        // ========== 状态管理 ==========
+        let pendingFiles = [];
+        let isProcessing = false;
+        let currentTab = 'add';
+
+        // ========== DOM 元素 ==========
+        const batchUploadZone = document.getElementById('batchUploadZone');
+        const batchFileInput = document.getElementById('batchFileInput');
+        const fileListContainer = document.getElementById('fileListContainer');
+        const fileList = document.getElementById('fileList');
+        const pendingCount = document.getElementById('pendingCount');
+        const clearFilesBtn = document.getElementById('clearFilesBtn');
+        const startProcessBtn = document.getElementById('startProcessBtn');
+        const progressIdle = document.getElementById('progressIdle');
+        const progressRunning = document.getElementById('progressRunning');
+        const logContainer = document.getElementById('clearLogBtn');
+        const deleteThresholdSlider = document.getElementById('deleteThreshold');
+        const deleteThresholdVal = document.getElementById('deleteThresholdVal');
+
+        // ========== 选项卡切换 ==========
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                currentTab = tab;
+                
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.classList.add('text-gray-600');
+                });
+                btn.classList.add('active');
+                btn.classList.remove('text-gray-600');
+                
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            });
+        });
+
+        // ========== 日志函数 ==========
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${time}] ${message}`;
+            
+            if (logContainer.querySelector('.text-center')) {
+                logContainer.innerHTML = '';
+            }
+            
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            document.getElementById('logContainer').innerHTML = '<div class="log-entry log-info text-center text-gray-400 !border-0">日志已清空</div>';
+        });
+
+        // ========== 批量上传 ==========
+        batchUploadZone.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                batchFileInput.click();
+            } else if (!e.target.closest('button')) {
+                batchFileInput.click();
+            }
+        });
+
+        batchUploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            batchUploadZone.classList.add('drag-over');
+        });
+
+        batchUploadZone.addEventListener('dragleave', () => {
+            batchUploadZone.classList.remove('drag-over');
+        });
+
+        batchUploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            batchUploadZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        batchFileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            
+            imageFiles.forEach(file => {
+                if (file.size > 10 * 1024 * 1024) {
+                    addLog(`文件 ${file.name} 超过10MB，已跳过`, 'warning');
+                    return;
+                }
+                
+                const id = Date.now() + Math.random();
+                pendingFiles.push({ id, file, status: 'pending' });
+            });
+            
+            updateFileList();
+            addLog(`已添加 ${imageFiles.length} 个文件到待处理队列`, 'info');
+        }
+
+        function updateFileList() {
+            if (pendingFiles.length === 0) {
+                fileListContainer.classList.add('hidden');
+                startProcessBtn.disabled = true;
+                return;
+            }
+            
+            fileListContainer.classList.remove('hidden');
+            startProcessBtn.disabled = isProcessing;
+            pendingCount.textContent = pendingFiles.length;
+            
+            fileList.innerHTML = pendingFiles.map(item => {
+                const sizeMB = (item.file.size / 1024 / 1024).toFixed(2);
+                let statusBadge = '';
+                
+                switch (item.status) {
+                    case 'pending':
+                        statusBadge = '<span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">等待中</span>';
+                        break;
+                    case 'processing':
+                        statusBadge = '<span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">处理中</span>';
+                        break;
+                    case 'success':
+                        statusBadge = '<span class="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded-full">成功</span>';
+                        break;
+                    case 'error':
+                        statusBadge = '<span class="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">失败</span>';
+                        break;
+                }
+                
+                return `
+                    <div class="file-item flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-100">
+                        <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-800 truncate">${item.file.name}</p>
+                            <p class="text-xs text-gray-400">${sizeMB} MB</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${statusBadge}
+                            <button class="remove-btn w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors" data-id="${item.id}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            fileList.querySelectorAll('.remove-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseFloat(e.currentTarget.dataset.id);
+                    pendingFiles = pendingFiles.filter(f => f.id !== id);
+                    updateFileList();
+                });
+            });
+        }
+
+        clearFilesBtn.addEventListener('click', () => {
+            pendingFiles = [];
+            updateFileList();
+            addLog('已清空文件列表', 'info');
+        });
+
+        // ========== 删除阈值滑块 ==========
+        deleteThresholdSlider.addEventListener('input', () => {
+            deleteThresholdVal.textContent = deleteThresholdSlider.value;
+        });
+
+        // ========== 删除图片上传 ==========
+        const deleteUploadZone = document.getElementById('deleteUploadZone');
+        const deleteFileInput = document.getElementById('deleteFileInput');
+        const deleteUploadPlaceholder = document.getElementById('deleteUploadPlaceholder');
+        const deletePreview = document.getElementById('deletePreview');
+        const deletePreviewImg = document.getElementById('deletePreviewImg');
+        let deleteImageFile = null;
+
+        deleteUploadZone.addEventListener('click', (e) => {
+            if (e.target.closest('#removeDeleteImg')) return;
+            deleteFileInput.click();
+        });
+
+        deleteFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    deleteImageFile = file;
+                    deleteUploadPlaceholder.classList.add('hidden');
+                    deletePreview.classList.remove('hidden');
+                    deletePreviewImg.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('removeDeleteImg').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteImageFile = null;
+            deleteUploadPlaceholder.classList.remove('hidden');
+            deletePreview.classList.add('hidden');
+            deletePreviewImg.src = '';
+            deleteFileInput.value = '';
+        });
+
+        // ========== 模拟处理流程 ==========
+        function updateProgress(percent, task) {
+            document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
+            document.getElementById('progressBarFill').style.width = percent + '%';
+            document.getElementById('progressTask').textContent = task;
+        }
+
+        function updateCounters(success, error, skip) {
+            document.getElementById('successCount').textContent = success;
+            document.getElementById('errorCount').textContent = error;
+            document.getElementById('skipCount').textContent = skip;
+        }
+
+        startProcessBtn.addEventListener('click', async () => {
+            if (pendingFiles.length === 0 || isProcessing) return;
+            
+            isProcessing = true;
+            startProcessBtn.disabled = true;
+            progressIdle.classList.add('hidden');
+            progressRunning.classList.remove('hidden');
+            
+            let success = 0, error = 0, skip = 0;
+            const concurrency = parseInt(document.getElementById('concurrency').value);
+            
+            addLog(`开始处理 ${pendingFiles.length} 个文件，并发数: ${concurrency}`, 'info');
+            
+            for (let i = 0; i < pendingFiles.length; i++) {
+                const item = pendingFiles[i];
+                item.status = 'processing';
+                updateFileList();
+                
+                const percent = (i / pendingFiles.length) * 100;
+                updateProgress(percent, `正在处理: ${item.file.name}`);
+                
+                await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
+                
+                if (Math.random() > 0.1) {
+                    item.status = 'success';
+                    success++;
+                    addLog(`✓ ${item.file.name} 特征提取成功，已入库`, 'success');
+                } else {
+                    item.status = 'error';
+                    error++;
+                    addLog(`✗ ${item.file.name} 处理失败: 无法解码图片`, 'error');
+                }
+                
+                updateCounters(success, error, skip);
+                updateFileList();
+            }
+            
+            updateProgress(100, '处理完成');
+            addLog(`批量处理完成! 成功: ${success}, 失败: ${error}`, success === pendingFiles.length ? 'success' : 'warning');
+            
+            isProcessing = false;
+            startProcessBtn.disabled = false;
+            
+            setTimeout(() => {
+                pendingFiles = pendingFiles.filter(f => f.status !== 'success');
+                updateFileList();
+            }, 2000);
+        });
+
+        // 删除按钮
+        document.getElementById('deleteBtn').addEventListener('click', () => {
+            const ids = document.getElementById('deleteIds').value.trim();
+            if (!ids && !deleteImageFile) {
+                alert('请输入要删除的ID或上传图片');
+                return;
+            }
+            
+            if (confirm('确定要删除选中的向量吗？此操作不可恢复。')) {
+                addLog('开始执行删除操作...', 'warning');
+                setTimeout(() => {
+                    addLog('删除完成，共删除 0 条记录', 'success');
+                }, 1000);
+            }
+        });
+
+        // 重建索引按钮
+        document.getElementById('rebuildBtn').addEventListener('click', () => {
+            if (confirm('重建索引需要数分钟时间，期间检索性能可能下降。确定继续吗？')) {
+                progressIdle.classList.add('hidden');
+                progressRunning.classList.remove('hidden');
+                addLog('开始重建向量索引...', 'info');
+                
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 5;
+                    if (progress >= 100) {
+                        progress = 100;
+                        clearInterval(interval);
+                        updateProgress(100, '索引重建完成');
+                        addLog('索引重建完成! 新索引已生效', 'success');
+                        addLog(`索引类型: ${document.getElementById('indexType').value}`, 'info');
+                    } else {
+                        updateProgress(progress, `重建中... K-Means 聚类 ${Math.round(progress)}%`);
+                    }
+                }, 300);
+            }
+        });
+
+        // 取消按钮
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            if (confirm('确定要取消当前任务吗？')) {
+                isProcessing = false;
+                progressIdle.classList.remove('hidden');
+                progressRunning.classList.add('hidden');
+                startProcessBtn.disabled = false;
+                addLog('任务已取消', 'warning');
+            }
+        });
+
+        // 快捷操作按钮
+        document.getElementById('exportIndexBtn').addEventListener('click', () => {
+            addLog('开始导出向量索引...', 'info');
+            setTimeout(() => addLog('索引已导出到 /backup/index_' + Date.now() + '.bin', 'success'), 1000);
+        });
+
+        document.getElementById('importIndexBtn').addEventListener('click', () => {
+            alert('请在后端API中实现索引导入功能');
+        });
+
+        document.getElementById('statsBtn').addEventListener('click', () => {
+            addLog('=== 向量库统计信息 ===', 'info');
+            addLog('总图像数: 1,068', 'info');
+            addLog('向量维度: 512', 'info');
+            addLog('索引类型: Lucene HNSW', 'info');
+            addLog('平均提取耗时: 42ms/张', 'info');
+            addLog('平均检索耗时: 8ms/次', 'info');
+        });
+
+        // 初始化日志
+        addLog('系统就绪，等待操作', 'success');
+    </script>
+</body>
+</html>

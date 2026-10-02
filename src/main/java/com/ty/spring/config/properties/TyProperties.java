@@ -38,7 +38,7 @@ public class TyProperties {
     private int luceneBufferSize = 256;
 
     /** Lucene索引目录 **/
-    private String indexDir = Paths.get(USER_HOME, "vector_index").toString();
+    private String indexDir = Paths.get(USER_HOME, "image_gallery", "vector_index").toString();
 
     /** 图库根目录 **/
     private String imageRoot = Paths.get(USER_HOME, "image_gallery", "gallery").toString();
