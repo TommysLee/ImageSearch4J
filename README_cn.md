@@ -221,7 +221,7 @@ PP-ShiTu 体系的检测模型是**端到端模型**，输出中已经包含一�
 
 | 项目 | 要求 |
 |---|---|
-| **JDK** | **17 及以上**（Spring Boot 3 的最低要求）|
+| **JDK** | **Zulu JDK 17 及以上**（Spring Boot 3 的最低要求） |
 | **操作系统** | Windows / Linux / macOS，需与 `ty.onnx-engine-path` 配置的平台一致 |
 | **内存** | 建议 ≥ 2 GB 可用 |
 | **构建工具** | Maven 3.8+ |

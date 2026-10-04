@@ -202,7 +202,7 @@ It complements NMS rather than replacing it. The built-in NMS handles ordinary o
 
 | | |
 |---|---|
-| **JDK** | 17 or newer (Spring Boot 3 requires it) |
+| **JDK** | Zulu JDK 17 or newer (Spring Boot 3 requires it) |
 | **OS** | Windows, Linux, or macOS, matching the platform in your `ty.onnx-engine-path` setting |
 | **Memory** | 2 GB free is a reasonable floor |
 | **Build** | Maven 3.8+ |
