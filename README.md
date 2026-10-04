@@ -24,12 +24,15 @@ Image search on the JVM usually means one of two things. You call out to a Pytho
 
 Detection, feature extraction, and vector search all run inside the JVM, in the same process as your Spring Boot application. No Python, no sidecar, and no vector database to keep running.
 
+If you know PP-ShiTu, you already know this project's shape. It's the same idea in Java: the same underlying models (PicoDet-LCNet for detection, PP-LCNetV2 for features), the same positioning, and the same zero-training property. PP-ShiTu runs on Python and PaddlePaddle; this runs on Java and DJL. Same job, two ecosystems.
+
 ---
 
 ## Contents
 
 - [Why this exists](#why-this-exists)
 - [What you get](#what-you-get)
+- [No training required](#no-training-required)
 - [Where it fits](#where-it-fits)
 - [Screenshots](#screenshots)
 - [How it works](#how-it-works)
@@ -66,12 +69,35 @@ ImageSearch4J is the third option. The AI gets folded into a single Java service
 ## What you get
 
 - **The whole pipeline runs in the JVM.** Detection, feature extraction, vector search. No Python, no sidecar, no cross-language calls.
+- **No training required.** The models are general-purpose and your knowledge lives in the gallery. Adding a category means adding images, not retraining anything.
 - **Models are bundled.** Both ONNX files (28 MB + 18 MB) ship inside the JAR and get unpacked to `~/models/` the first time you start.
 - **Lucene is the vector store.** HNSW with scalar quantization, embedded in your app, backed by a local folder. There is no separate vector database in the picture.
 - **SANMS**, a second pass over the detected boxes that fixes the case where a big box swallows a small one. More on this below.
 - **One JAR and nothing to operate.** The index is a directory, the models are files, and there's no service to keep alive.
 - **Designed to be extended.** The AI complexity sits behind a handful of services. You inject one, you call a method.
 - **Two front-end pages included.** Static HTML and plain JavaScript, no framework. One for searching, one for managing the vector index.
+
+---
+
+## No training required
+
+Image search is a retrieval task, not a classification task, and that distinction is where everything else follows from.
+
+|                           | Classification                 | Retrieval (image search)                |
+| ------------------------- | ------------------------------ | --------------------------------------- |
+| Where the knowledge lives | in the model weights           | in the gallery                          |
+| Adding a new category     | retrain: data, labels, compute | add a few images                        |
+| The model's job           | be a classifier                | be a general "image to vector" function |
+
+Because the knowledge sits in the gallery and not in the model, the model only has to do one thing: turn any image into a stable vector. A general pretrained model does that well, with no tuning against your data. That's why zero-shot works here.
+
+Three things follow:
+
+- **A new category means new images, not a new model.** No training, no labeling, no AI engineer in the loop. It's also what the vector update step replaces here, compared to the retraining you'd have to do elsewhere.
+- **Whoever integrates it needs no ML background.** No loss functions, no learning rates, no GPU cluster. You bring images.
+- **The Java side only ever does inference.** Training is heavy machinery: datasets, distributed jobs, hyperparameter search, GPU scheduling. Inference is light. Because there's no training to do, that whole class of complexity is gone, which is a large part of why the rest stays small.
+
+This is also where the project lines up with PP-ShiTu: same models, same positioning, same zero-training property. Moving to a new domain usually means a new gallery, and nothing else.
 
 ---
 
